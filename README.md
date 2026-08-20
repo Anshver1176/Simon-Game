@@ -3,6 +3,7 @@
 A modern and interactive Simon Memory Game built using HTML, CSS, and JavaScript, with a Node.js and Express backend for user authentication.
 
 ## ✨ Features
+live-https://simon-game-ansh-verma.vercel.app/
 
 - 🎮 Classic Simon memory gameplay
 - 🔴🟢🔵🟡 Interactive color pads
