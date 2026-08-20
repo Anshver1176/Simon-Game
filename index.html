@@ -1,100 +1,185 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-<title>Simon Game</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Simon Game</title>
 
-<!-- Google Fonts: Orbitron for the LED/digital readout, Poppins for body text -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-  <div class="stage">
+    <div class="auth-container" id="auth-container">
 
-    <!-- The physical "console" that houses the whole game -->
-    <main class="console" id="console">
+        <h2>Simon Game</h2>
 
-      <!-- Top bezel: title + digital readouts -->
-      <header class="console-top">
-        <h1 class="title">SIMON</h1>
+        <input
+            type="email"
+            id="email"
+            placeholder="Enter email"
+        >
 
-        <div class="display-panel">
-          <div class="display-item">
-            <span class="label">Level</span>
-            <span class="led" id="level-display">00</span>
-          </div>
+        <input
+            type="password"
+            id="password"
+            placeholder="Enter password"
+        >
 
-          <div class="display-item timer-item">
-            <span class="label">Time</span>
-            <div class="timer-track">
-              <div class="timer-fill" id="timer-fill"></div>
+        <button id="login-btn">
+            Login
+        </button>
+
+        <button id="signup-btn">
+            Signup
+        </button>
+
+        <p id="auth-message"></p>
+
+    </div>
+
+    <div class="stage" id="game-container">
+
+        <main class="console" id="console">
+
+            <header class="console-top">
+
+                <h1 class="title">SIMON</h1>
+
+                <div class="display-panel">
+
+                    <div class="display-item">
+                        <span class="label">Level</span>
+                        <span class="led" id="level-display">00</span>
+                    </div>
+
+                    <div class="display-item timer-item">
+                        <span class="label">Time</span>
+
+                        <div class="timer-track">
+                            <div class="timer-fill" id="timer-fill"></div>
+                        </div>
+                    </div>
+
+                    <div class="display-item">
+                        <span class="label">Best</span>
+                        <span class="led" id="high-score-display">00</span>
+                    </div>
+
+                </div>
+
+            </header>
+
+            <div class="game-board" id="game-board" aria-label="Simon color pads">
+
+                <button class="pad green" data-color="green" aria-label="Green pad"></button>
+                <button class="pad red" data-color="red" aria-label="Red pad"></button>
+                <button class="pad blue" data-color="blue" aria-label="Blue pad"></button>
+                <button class="pad yellow" data-color="yellow" aria-label="Yellow pad"></button>
+
+                <div class="center-hub">
+
+                    <div class="hub-ring">
+
+                        <button id="start-btn" class="hub-btn">
+                            Start
+                        </button>
+
+                        <button id="pause-btn" class="hub-btn hub-btn--ghost" disabled>
+                            Pause
+                        </button>
+
+                    </div>
+
+                </div>
+
             </div>
-          </div>
 
-          <div class="display-item">
-            <span class="label">Best</span>
-            <span class="led" id="high-score-display">00</span>
-          </div>
-        </div>
-      </header>
+            <footer class="console-bottom">
 
-      <!-- The four colored pads arranged as a circle -->
-      <div class="game-board" id="game-board" aria-label="Simon color pads">
-        <button class="pad green" data-color="green" aria-label="Green pad"></button>
-        <button class="pad red" data-color="red" aria-label="Red pad"></button>
-        <button class="pad blue" data-color="blue" aria-label="Blue pad"></button>
-        <button class="pad yellow" data-color="yellow" aria-label="Yellow pad"></button>
+                <div class="difficulty-select">
 
-        <!-- Center hub sits on top of the four pads -->
-        <div class="center-hub">
-          <div class="hub-ring">
-            <button id="start-btn" class="hub-btn">Start</button>
-            <button id="pause-btn" class="hub-btn hub-btn--ghost" disabled>Pause</button>
-          </div>
-        </div>
-      </div>
+                    <span class="label">Difficulty</span>
 
-      <!-- Bottom bezel: difficulty + status message -->
-      <footer class="console-bottom">
-        <div class="difficulty-select">
-          <span class="label">Difficulty</span>
-          <div class="seg-control" id="difficulty-control">
-            <button type="button" class="seg active" data-difficulty="easy">Easy</button>
-            <button type="button" class="seg" data-difficulty="medium">Medium</button>
-            <button type="button" class="seg" data-difficulty="hard">Hard</button>
-          </div>
-        </div>
+                    <div class="seg-control" id="difficulty-control">
 
-        <p class="status-text" id="status-text">Press Start to play</p>
-      </footer>
-    </main>
+                        <button type="button" class="seg active" data-difficulty="easy">
+                            Easy
+                        </button>
 
-    <p class="hint">Watch the sequence, then repeat it. Get it wrong, and it's game over.</p>
-  </div>
+                        <button type="button" class="seg" data-difficulty="medium">
+                            Medium
+                        </button>
 
-  <!-- Game over overlay -->
-  <div class="overlay hidden" id="game-over-overlay">
-    <div class="overlay-card">
-      <h2>Game Over</h2>
-      <p class="overlay-line">You reached level <span id="final-level">0</span></p>
-      <p class="overlay-line overlay-line--muted">Best: <span id="final-high">0</span></p>
-      <button id="restart-btn" class="overlay-btn">Play Again</button>
+                        <button type="button" class="seg" data-difficulty="hard">
+                            Hard
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <p class="status-text" id="status-text">
+                    Press Start to play
+                </p>
+
+            </footer>
+
+        </main>
+
+        <p class="hint">
+            Watch the sequence, then repeat it. Get it wrong, and it's game over.
+        </p>
+
     </div>
-  </div>
 
-  <!-- Pause overlay -->
-  <div class="overlay hidden" id="pause-overlay">
-    <div class="overlay-card">
-      <h2>Paused</h2>
-      <p class="overlay-line overlay-line--muted">Take a breath. The sequence is waiting.</p>
-      <button id="resume-btn" class="overlay-btn">Resume</button>
+    <div class="overlay hidden" id="game-over-overlay">
+
+        <div class="overlay-card">
+
+            <h2>Game Over</h2>
+
+            <p class="overlay-line">
+                You reached level
+                <span id="final-level">0</span>
+            </p>
+
+            <p class="overlay-line overlay-line--muted">
+                Best:
+                <span id="final-high">0</span>
+            </p>
+
+            <button id="restart-btn" class="overlay-btn">
+                Play Again
+            </button>
+
+        </div>
+
     </div>
-  </div>
 
-  <script src="script.js"></script>
+    <div class="overlay hidden" id="pause-overlay">
+
+        <div class="overlay-card">
+
+            <h2>Paused</h2>
+
+            <p class="overlay-line overlay-line--muted">
+                Take a breath. The sequence is waiting.
+            </p>
+
+            <button id="resume-btn" class="overlay-btn">
+                Resume
+            </button>
+
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
 </body>
 </html>

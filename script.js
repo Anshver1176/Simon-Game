@@ -1,444 +1,362 @@
-const padButtons = Array.from(document.querySelectorAll('.pad'));
-const startBtn = document.getElementById('start-btn');
-const pauseBtn = document.getElementById('pause-btn');
-const levelDisplay = document.getElementById('level-display');
-const highScoreDisplay = document.getElementById('high-score-display');
-const statusText = document.getElementById('status-text');
-const timerFill = document.getElementById('timer-fill');
+const authContainer = document.getElementById("auth-container");
+const gameContainer = document.getElementById("game-container");
 
-const difficultyControl = document.getElementById('difficulty-control');
-const difficultyButtons = Array.from(difficultyControl.querySelectorAll('.seg'));
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const loginBtn = document.getElementById("login-btn");
+const signupBtn = document.getElementById("signup-btn");
+const authMessage = document.getElementById("auth-message");
 
-const gameOverOverlay = document.getElementById('game-over-overlay');
-const finalLevelEl = document.getElementById('final-level');
-const finalHighEl = document.getElementById('final-high');
-const restartBtn = document.getElementById('restart-btn');
+const pads = Array.from(document.querySelectorAll(".pad"));
+const startBtn = document.getElementById("start-btn");
+const pauseBtn = document.getElementById("pause-btn");
+const levelDisplay = document.getElementById("level-display");
+const highScoreDisplay = document.getElementById("high-score-display");
+const statusText = document.getElementById("status-text");
+const timerFill = document.getElementById("timer-fill");
 
-const pauseOverlay = document.getElementById('pause-overlay');
-const resumeBtn = document.getElementById('resume-btn');
+const difficultyButtons = Array.from(
+    document.querySelectorAll("[data-difficulty]")
+);
+
+const gameOverOverlay = document.getElementById("game-over-overlay");
+const finalLevel = document.getElementById("final-level");
+const finalHigh = document.getElementById("final-high");
+const restartBtn = document.getElementById("restart-btn");
+
+const pauseOverlay = document.getElementById("pause-overlay");
+const resumeBtn = document.getElementById("resume-btn");
 
 const DIFFICULTY_SETTINGS = {
-  easy: { flashDuration: 600, gapDuration: 250, responseTime: 8000 },
-  medium: { flashDuration: 400, gapDuration: 150, responseTime: 5000 },
-  hard: { flashDuration: 250, gapDuration: 100, responseTime: 3000 },
-};
-
-const COLORS = ['green', 'red', 'blue', 'yellow'];
-
-const TONES = {
-  green: 329.63,
-  red: 277.18,
-  blue: 164.81,
-  yellow: 220.00,
+    easy: {
+        flashDuration: 600,
+        gapDuration: 250,
+        responseTime: 8000
+    },
+    medium: {
+        flashDuration: 400,
+        gapDuration: 150,
+        responseTime: 5000
+    },
+    hard: {
+        flashDuration: 250,
+        gapDuration: 100,
+        responseTime: 3000
+    }
 };
 
 let sequence = [];
 let playerStep = 0;
 let level = 0;
-let difficulty = 'easy';
-let highScore = Number(localStorage.getItem('simonHighScore')) || 0;
+let difficulty = "easy";
+let highScore = Number(localStorage.getItem("simonHighScore")) || 0;
 
-let isSequencePlaying = false;
-let isPaused = false;
-let isGameActive = false;
+let gameRunning = false;
 let acceptingInput = false;
+let paused = false;
 
-let sequenceTimeouts = [];
+let responseTimer = null;
+let timerInterval = null;
 
-let responseTimer = {
-  startTime: 0,
-  duration: 0,
-  timeoutId: null,
-  intervalId: null,
-  remaining: 0,
-};
+authContainer.style.display = "block";
+gameContainer.style.display = "none";
 
-let audioCtx = null;
+highScoreDisplay.textContent = String(highScore).padStart(2, "0");
 
-highScoreDisplay.textContent = padScore(highScore);
-levelDisplay.textContent = padScore(0);
+async function authenticate(url) {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
-function getAudioContext() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return audioCtx;
+    if (!email || !password) {
+        authMessage.textContent = "Enter email and password";
+        return;
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email,
+                password
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            authMessage.textContent = data.message || "Authentication failed";
+            return;
+        }
+
+        localStorage.setItem("token", data.token);
+
+        authMessage.textContent = data.message || "Success";
+
+        authContainer.style.display = "none";
+        gameContainer.style.display = "block";
+    } catch (error) {
+        console.error(error);
+        authMessage.textContent = "Unable to connect to server";
+    }
 }
 
-function playTone(color, duration = 300) {
-  try {
-    const ctx = getAudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+signupBtn.addEventListener("click", () => {
+    authenticate("http://localhost:3000/auth/signup");
+});
 
-    oscillator.type = 'sine';
-    oscillator.frequency.value = TONES[color] || 220;
+loginBtn.addEventListener("click", () => {
+    authenticate("http://localhost:3000/auth/login");
+});
 
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.02);
-    gainNode.gain.linearRampToValueAtTime(
-      0,
-      ctx.currentTime + duration / 1000
-    );
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + duration / 1000);
-  } catch (err) {
-    console.warn('Audio unavailable:', err);
-  }
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function playErrorTone() {
-  try {
-    const ctx = getAudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+function flashPad(pad) {
+    pad.classList.add("lit");
 
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.value = 110;
-
-    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + 0.5);
-  } catch (err) {
-    console.warn('Audio unavailable:', err);
-  }
+    setTimeout(() => {
+        pad.classList.remove("lit");
+    }, DIFFICULTY_SETTINGS[difficulty].flashDuration);
 }
 
-function padScore(n) {
-  return String(n).padStart(2, '0');
+async function playSequence() {
+    acceptingInput = false;
+
+    statusText.textContent = "Watch carefully...";
+
+    const settings = DIFFICULTY_SETTINGS[difficulty];
+
+    for (const color of sequence) {
+        if (paused) {
+            await wait(100);
+            continue;
+        }
+
+        const pad = pads.find(
+            currentPad => currentPad.dataset.color === color
+        );
+
+        if (pad) {
+            flashPad(pad);
+            await wait(settings.flashDuration);
+            await wait(settings.gapDuration);
+        }
+    }
+
+    if (!gameRunning || paused) {
+        return;
+    }
+
+    acceptingInput = true;
+    playerStep = 0;
+
+    statusText.textContent = "Your turn!";
+
+    startResponseTimer();
 }
 
-function getPad(color) {
-  return padButtons.find((btn) => btn.dataset.color === color);
-}
+function startResponseTimer() {
+    clearTimeout(responseTimer);
+    clearInterval(timerInterval);
 
-function setStatus(text) {
-  statusText.textContent = text;
+    const totalTime = DIFFICULTY_SETTINGS[difficulty].responseTime;
+    const startTime = Date.now();
+
+    timerFill.style.width = "100%";
+
+    timerInterval = setInterval(() => {
+        if (paused || !acceptingInput) {
+            return;
+        }
+
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, totalTime - elapsed);
+        const percentage = (remaining / totalTime) * 100;
+
+        timerFill.style.width = `${percentage}%`;
+
+        if (remaining <= 0) {
+            clearInterval(timerInterval);
+        }
+    }, 50);
+
+    responseTimer = setTimeout(() => {
+        if (acceptingInput && gameRunning && !paused) {
+            gameOver();
+        }
+    }, totalTime);
 }
 
 function startGame() {
-  getAudioContext();
+    clearTimeout(responseTimer);
+    clearInterval(timerInterval);
 
-  sequence = [];
-  playerStep = 0;
-  level = 0;
-  isGameActive = true;
-  isPaused = false;
+    sequence = [];
+    playerStep = 0;
+    level = 0;
 
-  levelDisplay.textContent = padScore(level);
-  gameOverOverlay.classList.add('hidden');
-  pauseOverlay.classList.add('hidden');
-
-  startBtn.disabled = true;
-  setDifficultyLocked(true);
-
-  nextRound();
-}
-
-function nextRound() {
-  level += 1;
-  levelDisplay.textContent = padScore(level);
-  playerStep = 0;
-  acceptingInput = false;
-
-  const nextColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  sequence.push(nextColor);
-
-  setStatus(`Level ${level} — watch closely...`);
-  pauseBtn.disabled = true;
-
-  playSequence();
-}
-
-function playSequence() {
-  isSequencePlaying = true;
-  clearResponseTimer();
-
-  sequenceTimeouts.forEach(clearTimeout);
-  sequenceTimeouts = [];
-
-  timerFill.style.transition = 'none';
-  timerFill.style.width = '100%';
-
-  const { flashDuration, gapDuration } = DIFFICULTY_SETTINGS[difficulty];
-  let delay = 300;
-
-  sequence.forEach((color) => {
-    sequenceTimeouts.push(
-      setTimeout(() => flashPad(color, flashDuration), delay)
-    );
-
-    delay += flashDuration + gapDuration;
-  });
-
-  sequenceTimeouts.push(
-    setTimeout(() => {
-      isSequencePlaying = false;
-      acceptingInput = true;
-      pauseBtn.disabled = false;
-      setStatus('Your turn — repeat the sequence');
-      startResponseTimer(DIFFICULTY_SETTINGS[difficulty].responseTime);
-    }, delay)
-  );
-}
-
-function flashPad(color, duration) {
-  const pad = getPad(color);
-
-  pad.classList.add('lit');
-  playTone(color, duration);
-
-  setTimeout(() => {
-    pad.classList.remove('lit');
-  }, duration);
-}
-
-function handlePadClick(color) {
-  if (!acceptingInput || isPaused) return;
-
-  const pad = getPad(color);
-
-  pad.classList.add('pressed');
-
-  setTimeout(() => {
-    pad.classList.remove('pressed');
-  }, 150);
-
-  flashPad(color, 200);
-
-  const expectedColor = sequence[playerStep];
-
-  if (color !== expectedColor) {
+    gameRunning = true;
     acceptingInput = false;
-    clearResponseTimer();
-    gameOver();
-    return;
-  }
+    paused = false;
 
-  playerStep += 1;
+    gameOverOverlay.classList.add("hidden");
+    pauseOverlay.classList.add("hidden");
 
-  startResponseTimer(
-    DIFFICULTY_SETTINGS[difficulty].responseTime
-  );
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
 
-  if (playerStep === sequence.length) {
-    acceptingInput = false;
-    clearResponseTimer();
+    levelDisplay.textContent = "00";
+    statusText.textContent = "Get ready...";
 
-    setStatus('Nice! Get ready for the next level...');
+    nextRound();
+}
 
-    setTimeout(() => {
-      if (isGameActive) nextRound();
-    }, 800);
-  }
+async function nextRound() {
+    if (!gameRunning || paused) {
+        return;
+    }
+
+    level++;
+
+    levelDisplay.textContent = String(level).padStart(2, "0");
+
+    const randomPad = pads[Math.floor(Math.random() * pads.length)];
+    sequence.push(randomPad.dataset.color);
+
+    await wait(500);
+
+    if (gameRunning && !paused) {
+        playSequence();
+    }
+}
+
+function handlePadClick(pad) {
+    if (!gameRunning || !acceptingInput || paused) {
+        return;
+    }
+
+    flashPad(pad);
+
+    const selectedColor = pad.dataset.color;
+    const correctColor = sequence[playerStep];
+
+    if (selectedColor !== correctColor) {
+        gameOver();
+        return;
+    }
+
+    playerStep++;
+
+    if (playerStep === sequence.length) {
+        acceptingInput = false;
+
+        clearTimeout(responseTimer);
+        clearInterval(timerInterval);
+
+        timerFill.style.width = "100%";
+
+        if (level > highScore) {
+            highScore = level;
+            localStorage.setItem("simonHighScore", highScore);
+            highScoreDisplay.textContent = String(highScore).padStart(2, "0");
+        }
+
+        statusText.textContent = "Correct!";
+
+        setTimeout(() => {
+            if (gameRunning && !paused) {
+                nextRound();
+            }
+        }, 700);
+    }
 }
 
 function gameOver() {
-  isGameActive = false;
-  acceptingInput = false;
-  isSequencePlaying = false;
+    clearTimeout(responseTimer);
+    clearInterval(timerInterval);
 
-  clearResponseTimer();
-  sequenceTimeouts.forEach(clearTimeout);
-  sequenceTimeouts = [];
+    gameRunning = false;
+    acceptingInput = false;
+    paused = false;
 
-  playErrorTone();
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
 
-  padButtons.forEach((pad) => {
-    pad.classList.add('pressed');
-  });
+    timerFill.style.width = "0%";
 
-  setTimeout(() => {
-    padButtons.forEach((pad) => {
-      pad.classList.remove('pressed');
-    });
-  }, 300);
+    if (level > highScore) {
+        highScore = level;
+        localStorage.setItem("simonHighScore", highScore);
+    }
 
-  const finalScore = level - 1 >= 0 ? level - 1 : 0;
+    highScoreDisplay.textContent = String(highScore).padStart(2, "0");
 
-  if (finalScore > highScore) {
-    highScore = finalScore;
-    localStorage.setItem('simonHighScore', String(highScore));
-  }
+    finalLevel.textContent = level;
+    finalHigh.textContent = highScore;
 
-  highScoreDisplay.textContent = padScore(highScore);
+    statusText.textContent = "Game Over";
 
-  finalLevelEl.textContent = String(finalScore);
-  finalHighEl.textContent = String(highScore);
-
-  setStatus('Game Over');
-
-  startBtn.disabled = false;
-  pauseBtn.disabled = true;
-
-  setDifficultyLocked(false);
-
-  gameOverOverlay.classList.remove('hidden');
-}
-
-function restartGame() {
-  gameOverOverlay.classList.add('hidden');
-  startGame();
+    gameOverOverlay.classList.remove("hidden");
 }
 
 function pauseGame() {
-  if (!isGameActive || !acceptingInput || isPaused) return;
+    if (!gameRunning || !acceptingInput) {
+        return;
+    }
 
-  isPaused = true;
-  acceptingInput = false;
+    paused = true;
 
-  freezeResponseTimer();
+    pauseOverlay.classList.remove("hidden");
 
-  pauseOverlay.classList.remove('hidden');
-  setStatus('Paused');
+    statusText.textContent = "Game paused";
 }
 
 function resumeGame() {
-  if (!isPaused) return;
-
-  isPaused = false;
-  acceptingInput = true;
-
-  pauseOverlay.classList.add('hidden');
-  setStatus('Your turn — repeat the sequence');
-
-  resumeResponseTimer();
-}
-
-function startResponseTimer(duration) {
-  clearResponseTimer();
-
-  responseTimer.startTime = Date.now();
-  responseTimer.duration = duration;
-
-  timerFill.classList.remove('warning', 'danger');
-  timerFill.style.transition = 'none';
-  timerFill.style.width = '100%';
-
-  void timerFill.offsetWidth;
-
-  timerFill.style.transition = `width ${duration}ms linear`;
-  timerFill.style.width = '0%';
-
-  responseTimer.timeoutId = setTimeout(
-    onResponseTimeout,
-    duration
-  );
-
-  responseTimer.intervalId = setInterval(() => {
-    const elapsed = Date.now() - responseTimer.startTime;
-    const fraction = 1 - elapsed / responseTimer.duration;
-
-    if (fraction <= 0.2) {
-      timerFill.classList.add('danger');
-      timerFill.classList.remove('warning');
-    } else if (fraction <= 0.45) {
-      timerFill.classList.add('warning');
+    if (!gameRunning) {
+        return;
     }
-  }, 150);
+
+    paused = false;
+
+    pauseOverlay.classList.add("hidden");
+
+    statusText.textContent = "Your turn!";
+
+    startResponseTimer();
 }
 
-function clearResponseTimer() {
-  if (responseTimer.timeoutId) {
-    clearTimeout(responseTimer.timeoutId);
-  }
+startBtn.addEventListener("click", startGame);
 
-  if (responseTimer.intervalId) {
-    clearInterval(responseTimer.intervalId);
-  }
+restartBtn.addEventListener("click", startGame);
 
-  responseTimer.timeoutId = null;
-  responseTimer.intervalId = null;
-}
+pauseBtn.addEventListener("click", pauseGame);
 
-function freezeResponseTimer() {
-  const computedWidth = getComputedStyle(timerFill).width;
+resumeBtn.addEventListener("click", resumeGame);
 
-  const elapsed = Date.now() - responseTimer.startTime;
-
-  responseTimer.remaining = Math.max(
-    responseTimer.duration - elapsed,
-    0
-  );
-
-  clearResponseTimer();
-
-  timerFill.style.transition = 'none';
-  timerFill.style.width = computedWidth;
-}
-
-function resumeResponseTimer() {
-  const remaining = responseTimer.remaining || 0;
-
-  if (remaining <= 0) {
-    onResponseTimeout();
-    return;
-  }
-
-  startResponseTimer(remaining);
-}
-
-function onResponseTimeout() {
-  if (!acceptingInput) return;
-
-  acceptingInput = false;
-  gameOver();
-}
-
-function setDifficultyLocked(locked) {
-  difficultyButtons.forEach((btn) => {
-    btn.disabled = locked;
-  });
-}
-
-function selectDifficulty(newDifficulty) {
-  difficulty = newDifficulty;
-
-  difficultyButtons.forEach((btn) => {
-    btn.classList.toggle(
-      'active',
-      btn.dataset.difficulty === newDifficulty
-    );
-  });
-}
-
-padButtons.forEach((pad) => {
-  pad.addEventListener('click', () => {
-    handlePadClick(pad.dataset.color);
-  });
+pads.forEach(pad => {
+    pad.addEventListener("click", () => {
+        handlePadClick(pad);
+    });
 });
 
-startBtn.addEventListener('click', startGame);
-restartBtn.addEventListener('click', restartGame);
-pauseBtn.addEventListener('click', pauseGame);
-resumeBtn.addEventListener('click', resumeGame);
+difficultyButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        if (gameRunning) {
+            return;
+        }
 
-difficultyButtons.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    if (btn.disabled) return;
+        difficulty = button.dataset.difficulty;
 
-    selectDifficulty(btn.dataset.difficulty);
-  });
-});
+        difficultyButtons.forEach(currentButton => {
+            currentButton.classList.remove("active");
+        });
 
-window.addEventListener('keydown', (e) => {
-  const map = {
-    '1': 'green',
-    '2': 'red',
-    '3': 'blue',
-    '4': 'yellow',
-  };
+        button.classList.add("active");
 
-  if (map[e.key]) {
-    handlePadClick(map[e.key]);
-  }
+        statusText.textContent = `Difficulty: ${difficulty}`;
+    });
 });
